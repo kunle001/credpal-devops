@@ -1,20 +1,21 @@
 # CredPal DevOps Assessment
 
-A production-ready DevOps pipeline for a Node.js web application, covering containerisation, CI/CD, infrastructure-as-code, zero-downtime deployment, and security.
+Production-ready DevOps pipeline for a Node.js web application — containerisation, CI/CD, infrastructure-as-code, zero-downtime deployment, security, and observability.
 
 ---
 
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
-2. [Running Locally](#running-locally)
-3. [Running Tests](#running-tests)
-4. [Docker](#docker)
-5. [CI/CD Pipeline](#cicd-pipeline)
-6. [Infrastructure (Terraform)](#infrastructure-terraform)
-7. [Deployment](#deployment)
-8. [Accessing the App](#accessing-the-app)
-9. [Key Decisions](#key-decisions)
+2. [Project Structure](#project-structure)
+3. [Running Locally](#running-locally)
+4. [Running Tests](#running-tests)
+5. [Docker](#docker)
+6. [CI/CD Pipeline](#cicd-pipeline)
+7. [Infrastructure (Terraform)](#infrastructure-terraform)
+8. [Deployment](#deployment)
+9. [Accessing the App](#accessing-the-app)
+10. [Key Decisions](#key-decisions)
 
 ---
 
@@ -24,28 +25,71 @@ A production-ready DevOps pipeline for a Node.js web application, covering conta
 Internet
    │
    ▼
-Application Load Balancer  (HTTPS :443, HTTP :80 → redirect)
+AWS WAF  (OWASP rules + rate limiting)
    │
    ▼
-ECS Fargate Service  (private subnets, 2 tasks minimum)
+Application Load Balancer  (HTTPS :443 · HTTP :80 → redirect)
    │
-   ├── Node.js App  (port 3000, non-root user)
+   ▼
+ECS Fargate Service  ×2 tasks min  (private subnets)
+   │  Auto-scales on CPU 70% / Memory 80%
+   ├── Node.js App  (port 3000 · non-root UID 1001)
    │
-   └── RDS PostgreSQL  (private subnet, encrypted at rest)
+   └── RDS PostgreSQL 15  (private subnet · encrypted · Multi-AZ in prod)
 ```
 
 | Component | Technology |
 |-----------|-----------|
-| App runtime | Node.js 20 (Alpine) |
+| Runtime | Node.js 20 Alpine |
 | Container orchestration | AWS ECS Fargate |
 | Load balancer | AWS ALB |
 | TLS/SSL | AWS ACM (auto-renewed) |
+| WAF | AWS WAFv2 – managed rule groups |
 | Database | AWS RDS PostgreSQL 15 |
 | Secrets | AWS Secrets Manager |
-| IaC | Terraform ≥ 1.6 |
-| CI/CD | GitHub Actions |
-| Container registry | GitHub Container Registry (GHCR) |
+| IaC | Terraform ≥ 1.6 – modular |
+| CI/CD | GitHub Actions (9 jobs) |
+| Registry | GitHub Container Registry (GHCR) |
 | Logging | CloudWatch Logs |
+| Alerting | CloudWatch Alarms → SNS → Email |
+
+---
+
+## Project Structure
+
+```
+credpal-devops/
+├── app/
+│   ├── src/
+│   │   ├── index.js          # Express app entry point
+│   │   ├── db.js             # Singleton pg connection pool
+│   │   └── routes/
+│   │       ├── health.js     # GET /health
+│   │       ├── status.js     # GET /status
+│   │       └── process.js    # POST /process
+│   └── tests/
+│       └── app.test.js
+├── .aws/
+│   └── task-definition.json  # ECS task definition template for CI/CD
+├── .github/workflows/
+│   └── ci-cd.yml             # 9-job pipeline
+├── terraform/
+│   ├── modules/
+│   │   ├── vpc/              # VPC, subnets, IGW, NAT
+│   │   ├── security-groups/  # ALB, ECS, RDS security groups
+│   │   ├── alb/              # ALB, ACM, WAF, Route 53 records
+│   │   ├── rds/              # RDS PostgreSQL
+│   │   └── ecs/              # ECS cluster+service, IAM, Secrets Manager,
+│   │                         # autoscaling, CloudWatch alarms, SNS
+│   ├── environments/
+│   │   ├── staging/          # Calls all modules – staging sizes
+│   │   └── production/       # Calls all modules – production sizes + HA
+│   └── scripts/
+│       └── bootstrap.sh      # One-time S3+DynamoDB state backend setup
+├── Dockerfile                # Multi-stage (deps → test → production)
+├── docker-compose.yml        # App + PostgreSQL for local dev
+└── .env.example
+```
 
 ---
 
@@ -60,50 +104,51 @@ ECS Fargate Service  (private subnets, 2 tasks minimum)
 
 ```bash
 cd app
-cp .env.example .env        # edit values as needed
+cp .env.example .env   # edit if needed
 npm install
 npm start
 ```
 
-The app starts on **http://localhost:3000**.
+App starts on **http://localhost:3000**.
 
-### Option B – Docker Compose (recommended)
+### Option B – Docker Compose (recommended, mirrors production)
 
 ```bash
-# Create a .env file in the project root
-cp app/.env.example .env
-# Set DB_PASSWORD in .env (any value for local dev)
+# Copy root .env.example to .env (docker-compose reads from project root)
+cp .env.example .env
 
 docker compose up --build
 ```
 
-Both the app and PostgreSQL will start. The app is available at **http://localhost:3000**.
+App + PostgreSQL start. Visit **http://localhost:3000**.
 
 ---
 
 ## Running Tests
 
 ```bash
-cd app
-npm install
-npm test
+cd app && npm install && npm test
 ```
 
-Jest runs all tests under `app/tests/` and outputs a coverage report to `app/coverage/`.
+Jest runs all tests under `app/tests/` with coverage written to `app/coverage/`.
 
 ---
 
 ## Docker
 
-### Build the production image manually
+### Multi-stage build stages
+
+| Stage | Purpose | Shipped? |
+|-------|---------|---------|
+| `deps` | Installs production deps only | No |
+| `test` | Runs Jest (CI validation) | No |
+| `production` | Lean runtime image with non-root user | **Yes** |
 
 ```bash
+# Build production image
 docker build --target production -t credpal-app:local .
-```
 
-### Run the image standalone
-
-```bash
+# Run it
 docker run -p 3000:3000 \
   -e NODE_ENV=production \
   -e DB_HOST=<host> \
@@ -117,95 +162,115 @@ docker run -p 3000:3000 \
 
 ## CI/CD Pipeline
 
-The pipeline lives in [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml) and runs on every push or pull request to `main`.
+Pipeline: [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml)
 
-### Jobs
+### Flow
 
-| Job | Trigger | What it does |
-|-----|---------|-------------|
-| `test` | All events | Installs deps, runs Jest, uploads coverage |
-| `build-and-push` | Push to `main` only | Builds multi-stage image, pushes to GHCR |
-| `deploy-staging` | After successful build | Deploys to ECS staging (automatic) |
-| `deploy-production` | After staging deploy | Deploys to ECS production (**requires manual approval**) |
+```
+PR  ──►  lint-and-test
+     ──►  dockerfile-lint
+     ──►  terraform-validate ──► terraform-plan (posts plan as PR comment)
 
-### Required GitHub Secrets
+main ──►  lint-and-test
+      ──►  dockerfile-lint
+      ──►  terraform-validate
+      ──►  build-and-push  (Trivy scan → fail on CRITICAL/HIGH before push)
+      ──►  deploy-staging  (rolling ECS update + smoke test)
+      ──►  terraform-apply-staging
+      ──►  deploy-production  ◄── MANUAL APPROVAL GATE
+      ──►  terraform-apply-production
+```
 
-| Secret | Description |
-|--------|-------------|
-| `AWS_ACCESS_KEY_ID` | IAM key with ECS/ECR permissions |
-| `AWS_SECRET_ACCESS_KEY` | Corresponding secret |
-| `AWS_REGION` | Target AWS region (e.g. `us-east-1`) |
+### GitHub Secrets & Variables required
+
+| Name | Type | Description |
+|------|------|-------------|
+| `AWS_STAGING_DEPLOY_ROLE_ARN` | Secret | IAM role ARN for staging (OIDC) |
+| `AWS_PROD_DEPLOY_ROLE_ARN` | Secret | IAM role ARN for production (OIDC) |
+| `DB_USERNAME` | Secret | Database username |
+| `DB_PASSWORD` | Secret | Database password |
+| `AWS_REGION` | Variable | AWS region |
+| `STAGING_DOMAIN` | Variable | Staging hostname |
+| `PROD_DOMAIN` | Variable | Production hostname |
+| `ALARM_EMAIL` | Variable | Alert notification email |
+
+> **No long-lived AWS keys** — authentication uses GitHub Actions OIDC (`id-token: write`). The IAM roles are created by Terraform in each environment.
 
 ### Manual Approval Gate
 
-The `production` GitHub environment must be configured with **required reviewers**:
-
-> **Settings → Environments → production → Required reviewers**
-
-No push to production happens without an explicit approval.
+Configure in **GitHub → Settings → Environments → production → Required reviewers**.
 
 ---
 
 ## Infrastructure (Terraform)
 
-All infrastructure is defined in the [`terraform/`](terraform/) directory.
-
 ### First-time setup
 
 ```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values
+# 1. Create S3 state bucket and DynamoDB lock table
+chmod +x terraform/scripts/bootstrap.sh
+AWS_REGION=us-east-1 ./terraform/scripts/bootstrap.sh
 
+# 2. Deploy staging
+cd terraform/environments/staging
+cp terraform.tfvars.example terraform.tfvars  # fill in your values
 terraform init
-terraform plan
+terraform apply
+
+# 3. Deploy production
+cd ../production
+cp terraform.tfvars.example terraform.tfvars
+terraform init
 terraform apply
 ```
 
-> **Note:** The S3 backend bucket and DynamoDB lock table must exist before `terraform init`.
-> Create them once with the AWS CLI:
-> ```bash
-> aws s3api create-bucket --bucket credpal-terraform-state --region us-east-1
-> aws dynamodb create-table \
->   --table-name credpal-terraform-locks \
->   --attribute-definitions AttributeName=LockID,AttributeType=S \
->   --key-schema AttributeName=LockID,KeyType=HASH \
->   --billing-mode PAY_PER_REQUEST
-> ```
+### Modules
 
-### Resources provisioned
+| Module | Resources |
+|--------|-----------|
+| `vpc` | VPC, 2 public + 2 private subnets, IGW, NAT, route tables |
+| `security-groups` | ALB SG, ECS SG, RDS SG (least-privilege) |
+| `alb` | ALB, target group, HTTPS listener, HTTP→HTTPS redirect, ACM cert, WAF |
+| `rds` | RDS PostgreSQL 15, subnet group |
+| `ecs` | ECS cluster, task definition, rolling service, IAM roles, Secrets Manager, auto-scaling, CloudWatch alarms, SNS topic |
 
-| Resource | Purpose |
-|----------|---------|
-| VPC + subnets | Isolated network (2 public, 2 private AZs) |
-| Internet Gateway + NAT | Public ingress; private outbound |
-| Security Groups | ALB, ECS tasks, and RDS with least-privilege rules |
-| Application Load Balancer | HTTPS termination, HTTP→HTTPS redirect |
-| ACM Certificate | Free TLS cert with DNS validation |
-| ECS Cluster + Fargate Service | Containerised app, 2 tasks minimum |
-| RDS PostgreSQL | Managed database in private subnet |
-| Secrets Manager | Stores DB password; injected at container runtime |
-| CloudWatch Logs | Centralised log storage (30-day retention) |
+### Staging vs Production differences
+
+| Setting | Staging | Production |
+|---------|---------|-----------|
+| ECS tasks | 1 (min 1, max 3) | 2 (min 2, max 10) |
+| Fargate CPU/memory | 256 / 512 | 512 / 1024 |
+| RDS class | db.t3.micro | db.t3.small |
+| RDS Multi-AZ | No | **Yes** |
+| RDS backup retention | 1 day | 7 days |
+| Deletion protection | No | **Yes** |
+| WAF | Disabled | **Enabled** |
 
 ---
 
 ## Deployment
 
-### Rolling deployment (zero downtime)
+### Zero-downtime rolling strategy
 
-ECS is configured with:
+ECS service configuration:
 
-- `deployment_minimum_healthy_percent = 100` – existing tasks stay alive until new ones pass health checks
-- `deployment_maximum_percent = 200` – allows twice the desired count during a rollout
-- **Deployment circuit breaker + automatic rollback** – failed deployments automatically revert
+```
+deployment_minimum_healthy_percent = 100   # never drop below desired capacity
+deployment_maximum_percent         = 200   # spin up double during rollout
+deregistration_delay               = 30s   # drain in-flight requests
+deployment_circuit_breaker                 # auto-rollback on failure
+```
 
-### Blue/Green alternative
+### Auto-scaling
 
-For stricter zero-downtime guarantees, the ECS service can be migrated to use **AWS CodeDeploy** (blue/green). The current rolling strategy is simpler and sufficient for most workloads.
+| Policy | Trigger | Action |
+|--------|---------|--------|
+| CPU | > 70% average | Scale out (60s cooldown out, 300s in) |
+| Memory | > 80% average | Scale out |
 
-### Manual production approval
+### Manual approval for production
 
-The GitHub Actions `deploy-production` job is gated by the `production` environment's required reviewer configuration. A reviewer must approve the workflow run before the deployment proceeds.
+The `deploy-production` job references the `production` GitHub environment. Until a configured reviewer approves the workflow run, the job is blocked.
 
 ---
 
@@ -213,24 +278,19 @@ The GitHub Actions `deploy-production` job is gated by the `production` environm
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Liveness probe – always responds if the process is running |
-| `/status` | GET | Readiness probe – reports version, env, and DB connectivity |
-| `/process` | POST | Accepts JSON body, echoes it back with metadata |
-
-**Locally:** `http://localhost:3000`
-**Production:** `https://<your-domain-name>` (set via `var.domain_name`)
-
-Example requests:
+| `/health` | GET | Liveness probe |
+| `/status` | GET | Readiness probe + DB connectivity |
+| `/process` | POST | Accepts JSON, echoes with metadata |
 
 ```bash
 # Health
-curl http://localhost:3000/health
+curl https://api.yourdomain.com/health
 
 # Status
-curl http://localhost:3000/status
+curl https://api.yourdomain.com/status
 
 # Process
-curl -X POST http://localhost:3000/process \
+curl -X POST https://api.yourdomain.com/process \
   -H "Content-Type: application/json" \
   -d '{"user": "alice", "amount": 5000}'
 ```
@@ -243,32 +303,39 @@ curl -X POST http://localhost:3000/process \
 
 | Decision | Rationale |
 |----------|-----------|
-| Non-root container user (UID 1001) | Limits blast radius of container compromise |
-| Multi-stage Dockerfile | Production image contains no dev tools or test code |
-| `dumb-init` as PID 1 | Correct signal forwarding; prevents zombie processes |
-| Secrets Manager for DB password | Never stored in code, env files, or GitHub secrets |
-| ALB terminates TLS | ACM certificates auto-renew; no manual cert management |
+| OIDC instead of static AWS keys | No long-lived credentials stored in GitHub; each workflow run gets a short-lived token |
+| Production OIDC condition: `ref:refs/heads/main` | Only merges to main can deploy to production |
+| Non-root container user (UID 1001) | Limits blast radius of a container compromise |
+| Multi-stage Dockerfile | Production image has no dev tooling or test code |
+| `dumb-init` as PID 1 | Correct signal forwarding, no zombie processes |
+| DB password in Secrets Manager | Injected at container runtime — never in code, Git, or env files |
+| ACM + ALB for TLS | Certs auto-renew; no manual cert management |
 | ECS tasks in private subnets | Not directly reachable from the internet |
-| Security groups with least privilege | RDS only accepts connections from ECS; ECS only from ALB |
-| `helmet` middleware | Sets secure HTTP headers (X-Frame-Options, CSP, etc.) |
+| WAF (production) | OWASP common rules + known-bad-inputs + IP rate limiting (1 000 req/5 min) |
+| `helmet` middleware | Secure HTTP headers on every response |
 
 ### CI/CD
 
 | Decision | Rationale |
 |----------|-----------|
-| Tests must pass before image is built | Prevents broken images from ever reaching a registry |
-| Image tagged with Git SHA | Every image is traceable to an exact commit |
-| GitHub Actions cache for Docker layers | Faster builds without re-downloading unchanged layers |
-| Staging → Production promotion | No code reaches production without passing a staging environment first |
-| Manual approval gate | Explicit human sign-off required before production changes |
-| ECS circuit breaker + rollback | Automated safety net for bad deployments |
+| Trivy scan before push | Image is only pushed if clean; SARIF uploaded to GitHub Security tab |
+| `npm audit --audit-level=high` | Catches known vulnerable dependencies before any build |
+| Hadolint | Catches Dockerfile anti-patterns early |
+| `terraform fmt -check` + `validate` on every PR | IaC changes are linted before merge |
+| `terraform plan` posted as PR comment | Reviewers see exact infrastructure changes before approving |
+| SHA-tagged images | Every image is traceable to an exact commit |
+| Smoke test after staging deploy | Catches broken deployments before they reach production |
+| Circuit breaker + auto-rollback | Failed deployments revert automatically without manual intervention |
 
 ### Infrastructure
 
 | Decision | Rationale |
 |----------|-----------|
-| AWS ECS Fargate | No EC2 instance management; automatic scaling |
-| RDS managed PostgreSQL | Automated backups, minor version updates, and Multi-AZ option |
-| S3 + DynamoDB remote state | Shared, locked state prevents concurrent Terraform apply conflicts |
-| `ignore_changes = [task_definition]` | Lets CI/CD own the running image tag without Terraform interference |
-| `deregistration_delay = 30s` on target group | Gives in-flight requests time to complete during rolling updates |
+| Terraform modules | Reusable, independently testable; staging and production share the same code with different inputs |
+| Separate state files per environment | A broken production state cannot affect staging |
+| `ignore_changes = [task_definition]` | CI/CD owns the running image tag; Terraform owns everything else |
+| RDS Multi-AZ (production only) | Automatic failover; staging doesn't need the cost |
+| Auto-scaling target tracking | Simpler and more reliable than step scaling; scales both out and in automatically |
+| CloudWatch Alarms → SNS → Email | Operational visibility: CPU high, memory high, 5xx errors, unhealthy host count |
+| S3 state with versioning + encryption | Recover from accidental state corruption; state at rest is encrypted |
+| DynamoDB state locking | Prevents concurrent `terraform apply` races |

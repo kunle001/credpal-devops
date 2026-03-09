@@ -18,7 +18,7 @@ services:
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-credpal_db}
       DB_USER: ${DB_USER:-credpal_user}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me_local}
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,7 +43,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-credpal_db}
       POSTGRES_USER: ${DB_USER:-credpal_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_local}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars – never commit that file.
+aws_region      = "us-east-1"
+app_image       = "ghcr.io/YOUR_ORG/credpal-devops:latest"
+domain_name     = "api.yourdomain.com"
+route53_zone_id = ""          # Set to your hosted zone ID for auto DNS setup
+db_name         = "credpal_db"
+db_username     = "credpal_user"
+db_password     = "REPLACE_WITH_STRONG_PASSWORD"
+alarm_email     = "devops@yourcompany.com"
+github_repo     = "YOUR_ORG/credpal-devops"
