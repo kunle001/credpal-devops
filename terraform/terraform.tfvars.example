@@ -1,0 +1,20 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars – it is listed in .gitignore.
+
+aws_region  = "us-east-1"
+environment = "production"
+app_name    = "credpal-app"
+
+# Image tag is set by CI/CD; override here for manual applies
+app_image = "ghcr.io/YOUR_ORG/credpal-devops:latest"
+
+app_count      = 2
+fargate_cpu    = 256
+fargate_memory = 512
+app_port       = 3000
+
+domain_name = "api.yourdomain.com"
+
+db_name     = "credpal_db"
+db_username = "credpal_user"
+db_password = "REPLACE_WITH_STRONG_PASSWORD"
