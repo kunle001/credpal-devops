@@ -1,5 +1,6 @@
 const express = require('express');
 const { getPool } = require('../db');
+const { env } = require('../config/env');
 
 const router = express.Router();
 
@@ -14,8 +15,8 @@ router.get('/status', async (req, res) => {
 
   res.status(200).json({
     status: 'ok',
-    version: process.env.APP_VERSION || '1.0.0',
-    environment: process.env.NODE_ENV || 'development',
+    version: env.APP_VERSION || '1.0.0',
+    environment: env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
     dependencies: {
       database: dbStatus,

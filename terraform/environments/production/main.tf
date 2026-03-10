@@ -39,7 +39,7 @@ module "rds" {
   db_password        = var.db_password
   instance_class              = "db.t3.small"
   backup_retention_days       = 7
-  multi_az                    = true   # HA in production
+  multi_az                    = true
   enable_deletion_protection  = true
 }
 
