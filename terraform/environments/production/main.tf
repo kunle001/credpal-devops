@@ -105,6 +105,25 @@ resource "aws_iam_role" "github_actions" {
   })
 }
 
+# ─── Pipeline credentials secret ─────────────────────────────────────────────
+# Stores DB credentials that CI/CD fetches at runtime via OIDC.
+# No secrets live in GitHub – only this AWS SM secret and role ARNs (non-sensitive).
+
+resource "aws_secretsmanager_secret" "pipeline" {
+  name                    = "${local.name_prefix}/pipeline"
+  description             = "CI/CD pipeline credentials for ${local.name_prefix}"
+  recovery_window_in_days = 7
+  tags                    = { Name = "${local.name_prefix}-pipeline-secret" }
+}
+
+resource "aws_secretsmanager_secret_version" "pipeline" {
+  secret_id = aws_secretsmanager_secret.pipeline.id
+  secret_string = jsonencode({
+    DB_USERNAME = var.db_username
+    DB_PASSWORD = var.db_password
+  })
+}
+
 resource "aws_iam_role_policy" "github_actions_deploy" {
   name = "${local.name_prefix}-deploy-policy"
   role = aws_iam_role.github_actions.id
@@ -112,15 +131,43 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # ECS deployments
       {
-        Effect   = "Allow"
-        Action   = ["ecs:UpdateService", "ecs:RegisterTaskDefinition", "ecs:DescribeTaskDefinition", "ecs:DescribeServices"]
+        Effect = "Allow"
+        Action = [
+          "ecs:UpdateService",
+          "ecs:RegisterTaskDefinition",
+          "ecs:DescribeTaskDefinition",
+          "ecs:DescribeServices"
+        ]
         Resource = "*"
       },
+      # Pass the ECS task role to the task definition
       {
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
         Resource = module.ecs.task_role_arn
+      },
+      # Read pipeline credentials from Secrets Manager
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = aws_secretsmanager_secret.pipeline.arn
+      },
+      # Terraform remote state – S3
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::credpal-terraform-state",
+          "arn:aws:s3:::credpal-terraform-state/production/*"
+        ]
+      },
+      # Terraform remote state – DynamoDB lock
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:*:table/credpal-terraform-locks"
       }
     ]
   })

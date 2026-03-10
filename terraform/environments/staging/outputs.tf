@@ -17,3 +17,13 @@ output "ecs_service" {
 output "log_group" {
   value = module.ecs.log_group_name
 }
+
+output "pipeline_secret_name" {
+  description = "Set this as GitHub Variable STAGING_PIPELINE_SECRET"
+  value       = aws_secretsmanager_secret.pipeline.name
+}
+
+output "github_actions_role_arn" {
+  description = "Set this as GitHub Variable AWS_STAGING_DEPLOY_ROLE_ARN"
+  value       = aws_iam_role.github_actions.arn
+}
