@@ -181,20 +181,22 @@ main ──►  lint-and-test
       ──►  terraform-apply-production
 ```
 
-### GitHub Secrets & Variables required
+### GitHub Variables required
 
-| Name | Type | Description |
-|------|------|-------------|
-| `AWS_STAGING_DEPLOY_ROLE_ARN` | Secret | IAM role ARN for staging (OIDC) |
-| `AWS_PROD_DEPLOY_ROLE_ARN` | Secret | IAM role ARN for production (OIDC) |
-| `DB_USERNAME` | Secret | Database username |
-| `DB_PASSWORD` | Secret | Database password |
-| `AWS_REGION` | Variable | AWS region |
-| `STAGING_DOMAIN` | Variable | Staging hostname |
-| `PROD_DOMAIN` | Variable | Production hostname |
-| `ALARM_EMAIL` | Variable | Alert notification email |
+All values are non-sensitive — set under **Settings → Secrets and variables → Actions → Variables tab**.
 
-> **No long-lived AWS keys** — authentication uses GitHub Actions OIDC (`id-token: write`). The IAM roles are created by Terraform in each environment.
+| Name | Description | Where to get it |
+|------|-------------|-----------------|
+| `AWS_REGION` | AWS region | `us-east-1` |
+| `AWS_STAGING_DEPLOY_ROLE_ARN` | IAM role ARN for staging OIDC | `terraform output github_actions_role_arn` (staging) |
+| `AWS_PROD_DEPLOY_ROLE_ARN` | IAM role ARN for production OIDC | `terraform output github_actions_role_arn` (production) |
+| `STAGING_PIPELINE_SECRET` | AWS Secrets Manager secret name | `terraform output pipeline_secret_name` (staging) |
+| `PROD_PIPELINE_SECRET` | AWS Secrets Manager secret name | `terraform output pipeline_secret_name` (production) |
+| `STAGING_DOMAIN` | Staging hostname | e.g. `staging-api.yourdomain.com` |
+| `PROD_DOMAIN` | Production hostname | e.g. `api.yourdomain.com` |
+| `ALARM_EMAIL` | Alert notification email | your email |
+
+> **Zero GitHub Secrets** — no long-lived AWS keys or DB passwords stored in GitHub. Authentication uses OIDC short-lived tokens; DB credentials are fetched at runtime from AWS Secrets Manager. The IAM roles and pipeline secrets are created by Terraform.
 
 ### Manual Approval Gate
 
@@ -207,9 +209,17 @@ Configure in **GitHub → Settings → Environments → production → Required 
 ### First-time setup
 
 ```bash
-# 1. Create S3 state bucket and DynamoDB lock table
+# 1. Create S3 state bucket, DynamoDB lock table, and GitHub OIDC provider
+#    (all three are account-scoped and created once — safe to re-run)
 chmod +x terraform/scripts/bootstrap.sh
-AWS_REGION=us-east-1 ./terraform/scripts/bootstrap.sh
+BUCKET_NAME=credpal-terraform-state-$(aws sts get-caller-identity --query Account --output text) \
+  AWS_REGION=us-east-1 \
+  ./terraform/scripts/bootstrap.sh
+
+# Update backend.tf files with your actual bucket name before continuing
+# sed -i '' "s/credpal-terraform-state/credpal-terraform-state-ACCOUNT_ID/g" \
+#   terraform/environments/staging/backend.tf \
+#   terraform/environments/production/backend.tf
 
 # 2. Deploy staging
 cd terraform/environments/staging
@@ -217,7 +227,7 @@ cp terraform.tfvars.example terraform.tfvars  # fill in your values
 terraform init
 terraform apply
 
-# 3. Deploy production
+# 3. Deploy production (OIDC provider already exists from bootstrap — no conflict)
 cd ../production
 cp terraform.tfvars.example terraform.tfvars
 terraform init

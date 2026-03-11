@@ -5,7 +5,7 @@ resource "aws_security_group" "alb" {
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "HTTP – redirected to HTTPS"
+    description = "HTTP - redirected to HTTPS"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -30,14 +30,14 @@ resource "aws_security_group" "alb" {
   tags = { Name = "${var.name_prefix}-alb-sg" }
 }
 
-# ECS tasks: accepts traffic on app port only from the ALB
+# ECS tasks: accepts traffic on app port only from the Application Load Balancer
 resource "aws_security_group" "ecs" {
   name        = "${var.name_prefix}-ecs-sg"
-  description = "ECS tasks – inbound only from ALB"
+  description = "ECS tasks - inbound only from Application Load Balancer"
   vpc_id      = var.vpc_id
 
   ingress {
-    description     = "App port from ALB"
+    description     = "App port from Application Load Balancer"
     from_port       = var.app_port
     to_port         = var.app_port
     protocol        = "tcp"
@@ -54,10 +54,10 @@ resource "aws_security_group" "ecs" {
   tags = { Name = "${var.name_prefix}-ecs-sg" }
 }
 
-# RDS: accepts PostgreSQL only from ECS tasks
+# Relational Database Service: accepts PostgreSQL only from ECS tasks
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds-sg"
-  description = "RDS – inbound only from ECS tasks"
+  description = "RDS - inbound only from ECS tasks"
   vpc_id      = var.vpc_id
 
   ingress {

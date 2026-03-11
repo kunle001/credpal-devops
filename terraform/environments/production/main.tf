@@ -71,14 +71,11 @@ module "ecs" {
 }
 
 # ─── GitHub Actions OIDC ──────────────────────────────────────────────────────
-# If the OIDC provider was already created in staging, import it instead:
-# terraform import aws_iam_openid_connect_provider.github \
-#   arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
+# The OIDC provider is account-scoped (one per URL) so staging creates it.
+# Production references it via a data source to avoid a duplicate error.
 
-resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
 }
 
 resource "aws_iam_role" "github_actions" {
@@ -89,7 +86,7 @@ resource "aws_iam_role" "github_actions" {
     Statement = [{
       Effect = "Allow"
       Principal = {
-        Federated = aws_iam_openid_connect_provider.github.arn
+        Federated = data.aws_iam_openid_connect_provider.github.arn
       }
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {

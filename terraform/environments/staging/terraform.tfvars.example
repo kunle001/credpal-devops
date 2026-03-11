@@ -1,4 +1,3 @@
-# Copy to terraform.tfvars – never commit that file.
 aws_region      = "us-east-1"
 app_image       = "ghcr.io/YOUR_ORG/credpal-devops:latest"
 domain_name     = "staging-api.yourdomain.com"

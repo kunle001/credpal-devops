@@ -9,7 +9,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "credpal-terraform-state"
+    bucket         = "credpal-terraform-state-517818188528"
     key            = "staging/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
