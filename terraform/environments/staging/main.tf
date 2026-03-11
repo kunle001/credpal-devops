@@ -128,6 +128,28 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # Read-only access across all services – required for Terraform state refresh
+      # (Describe*, List*, Get* operations needed to read existing resources)
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:Describe*", "ec2:Get*",
+          "elasticloadbalancing:Describe*",
+          "acm:Describe*", "acm:List*", "acm:Get*",
+          "wafv2:Describe*", "wafv2:List*", "wafv2:Get*", "wafv2:Check*",
+          "route53:List*", "route53:Get*",
+          "rds:Describe*", "rds:List*",
+          "ecs:Describe*", "ecs:List*",
+          "iam:Get*", "iam:List*",
+          "secretsmanager:Describe*", "secretsmanager:List*", "secretsmanager:GetSecretValue",
+          "logs:Describe*", "logs:List*",
+          "cloudwatch:Describe*", "cloudwatch:List*", "cloudwatch:Get*",
+          "sns:Get*", "sns:List*",
+          "application-autoscaling:Describe*",
+          "elasticloadbalancing:Describe*"
+        ]
+        Resource = "*"
+      },
       # ECS – full management for deployments and Terraform
       {
         Effect   = "Allow"
