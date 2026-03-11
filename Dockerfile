@@ -35,6 +35,9 @@ FROM node:20-alpine AS production
 RUN apk upgrade --no-cache && \
     apk add --no-cache dumb-init wget
 
+# Upgrade npm to latest patched version (bundled npm may contain CVEs)
+RUN npm install -g npm@latest --ignore-scripts
+
 # Create non-root user
 RUN addgroup -g 1001 -S appgroup && \
     adduser  -u 1001 -S appuser -G appgroup
