@@ -312,11 +312,18 @@ jobs:
           role-to-assume: ${{ vars.AWS_STAGING_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Fetch current task definition from ECS
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition credpal-staging-task \
+            --query taskDefinition \
+            --output json > /tmp/task-definition-staging.json
+
       - name: Render ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: .aws/task-definition.json
+          task-definition: /tmp/task-definition-staging.json
           container-name: credpal-app
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
 
@@ -413,11 +420,18 @@ jobs:
           role-to-assume: ${{ vars.AWS_PROD_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Fetch current task definition from ECS
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition credpal-production-task \
+            --query taskDefinition \
+            --output json > /tmp/task-definition-production.json
+
       - name: Render ECS task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: .aws/task-definition.json
+          task-definition: /tmp/task-definition-production.json
           container-name: credpal-app
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
 
