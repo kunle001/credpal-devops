@@ -67,7 +67,9 @@ resource "aws_iam_role_policy" "execution_secrets" {
       Action = ["secretsmanager:GetSecretValue"]
       Resource = [
         aws_secretsmanager_secret.db_password.arn,
-        var.ghcr_secret_arn,
+        # Secrets Manager appends a 6-char random suffix to the ARN.
+        # The wildcard covers both the base ARN and any suffixed form.
+        "${var.ghcr_secret_arn}*",
       ]
     }]
   })

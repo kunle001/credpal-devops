@@ -69,8 +69,6 @@ credpal-devops/
 │   │       └── process.js    # POST /process
 │   └── tests/
 │       └── app.test.js
-├── .aws/
-│   └── task-definition.json  # ECS task definition template for CI/CD
 ├── .github/workflows/
 │   └── ci-cd.yml             # 9-job pipeline
 ├── terraform/
@@ -87,6 +85,7 @@ credpal-devops/
 │   └── scripts/
 │       └── bootstrap.sh      # One-time S3+DynamoDB state backend setup
 ├── Dockerfile                # Multi-stage (deps → test → production)
+├── .pre-commit-config.yaml   # terraform fmt auto-format on commit
 ├── docker-compose.yml        # App + PostgreSQL for local dev
 └── .env.example
 ```
@@ -140,9 +139,13 @@ Jest runs all tests under `app/tests/` with coverage written to `app/coverage/`.
 
 | Stage | Purpose | Shipped? |
 |-------|---------|---------|
-| `deps` | Installs production deps only | No |
+| `deps` | Installs production deps only (`npm ci --omit=dev`) | No |
 | `test` | Runs Jest (CI validation) | No |
-| `production` | Lean runtime image with non-root user | **Yes** |
+| `production` | Lean runtime image — non-root user, npm/corepack removed, all OS packages upgraded | **Yes** |
+
+> **Security hardening in the production stage:**
+> - `apk upgrade --no-cache` — patches all Alpine OS packages to their latest versions, clearing fixable CVEs
+> - `npm` and `corepack` are deleted — the container only runs `node src/index.js` and does not need a package manager at runtime; this also eliminates npm's bundled dependencies from vulnerability scans
 
 ```bash
 # Build production image
@@ -174,7 +177,7 @@ PR  ──►  lint-and-test
 main ──►  lint-and-test
       ──►  dockerfile-lint
       ──►  terraform-validate
-      ──►  build-and-push  (Trivy scan → fail on CRITICAL/HIGH before push)
+      ──►  build-and-push  (Trivy scan table → SARIF → fail on CRITICAL/HIGH fixable CVEs before push)
       ──►  deploy-staging  (rolling ECS update + smoke test)
       ──►  terraform-apply-staging
       ──►  deploy-production  ◄── MANUAL APPROVAL GATE
@@ -197,6 +200,8 @@ All values are non-sensitive — set under **Settings → Secrets and variables 
 | `ALARM_EMAIL` | Alert notification email | your email |
 
 > **Zero GitHub Secrets** — no long-lived AWS keys or DB passwords stored in GitHub. Authentication uses OIDC short-lived tokens; DB credentials are fetched at runtime from AWS Secrets Manager. The IAM roles and pipeline secrets are created by Terraform.
+
+> **ECS task definition** — the pipeline fetches the current task definition directly from ECS (`aws ecs describe-task-definition`) and updates only the image tag. Terraform is the source of truth for all other task definition fields (roles, env vars, health checks, log config).
 
 ### Manual Approval Gate
 
@@ -221,13 +226,21 @@ BUCKET_NAME=credpal-terraform-state-$(aws sts get-caller-identity --query Accoun
 #   terraform/environments/staging/backend.tf \
 #   terraform/environments/production/backend.tf
 
-# 2. Deploy staging
+# 2. Create GHCR pull credentials in Secrets Manager
+#    Generate a GitHub PAT at: Settings → Developer settings → Personal access tokens
+#    Scope required: read:packages only
+aws secretsmanager create-secret \
+  --name "credpal/ghcr-pull-credentials" \
+  --secret-string '{"username":"<GITHUB_USERNAME>","password":"<GITHUB_PAT>"}' \
+  --region us-east-1
+
+# 3. Deploy staging
 cd terraform/environments/staging
 cp terraform.tfvars.example terraform.tfvars  # fill in your values
 terraform init
 terraform apply
 
-# 3. Deploy production (OIDC provider already exists from bootstrap — no conflict)
+# 4. Deploy production (OIDC provider already exists from bootstrap — no conflict)
 cd ../production
 cp terraform.tfvars.example terraform.tfvars
 terraform init
@@ -317,8 +330,11 @@ curl -X POST https://api.yourdomain.com/process \
 | Production OIDC condition: `ref:refs/heads/main` | Only merges to main can deploy to production |
 | Non-root container user (UID 1001) | Limits blast radius of a container compromise |
 | Multi-stage Dockerfile | Production image has no dev tooling or test code |
+| npm/corepack removed from production image | Package manager not needed at runtime; eliminates its bundled deps (minimatch, tar) from Trivy scan surface |
+| `apk upgrade --no-cache` in production stage | Patches all Alpine OS packages to latest, clearing fixable CVEs reported by Trivy |
 | `dumb-init` as PID 1 | Correct signal forwarding, no zombie processes |
 | DB password in Secrets Manager | Injected at container runtime — never in code, Git, or env files |
+| GHCR pull credentials in Secrets Manager | GitHub PAT (read:packages only) stored in AWS Secrets Manager; ECS execution role reads it via `repositoryCredentials` — no credentials in task definition or source code |
 | ACM + ALB for TLS | Certs auto-renew; no manual cert management |
 | ECS tasks in private subnets | Not directly reachable from the internet |
 | WAF (production) | OWASP common rules + known-bad-inputs + IP rate limiting (1 000 req/5 min) |
@@ -328,10 +344,11 @@ curl -X POST https://api.yourdomain.com/process \
 
 | Decision | Rationale |
 |----------|-----------|
-| Trivy scan before push | Image is only pushed if clean; SARIF uploaded to GitHub Security tab |
+| Trivy scan before push | Two-step scan: table format prints CVE names to the Actions log for visibility; SARIF format enforces the gate and uploads results to the GitHub Security tab. Image is only pushed after a clean scan |
 | `npm audit --audit-level=high` | Catches known vulnerable dependencies before any build |
 | Hadolint | Catches Dockerfile anti-patterns early |
 | `terraform fmt -check` + `validate` on every PR | IaC changes are linted before merge |
+| `.pre-commit-config.yaml` + local git hook | Automatically runs `terraform fmt -recursive` before every commit, preventing fmt check failures in CI |
 | `terraform plan` posted as PR comment | Reviewers see exact infrastructure changes before approving |
 | SHA-tagged images | Every image is traceable to an exact commit |
 | Smoke test after staging deploy | Catches broken deployments before they reach production |
