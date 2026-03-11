@@ -261,8 +261,11 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
+        # Requires GitHub Advanced Security (free for public repos).
+        # On private repos without GHAS this step is skipped gracefully.
+        continue-on-error: true
         with:
           sarif_file: trivy-results.sarif
 
