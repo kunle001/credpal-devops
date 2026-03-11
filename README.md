@@ -366,3 +366,4 @@ curl -X POST https://api.yourdomain.com/process \
 | CloudWatch Alarms → SNS → Email | Operational visibility: CPU high, memory high, 5xx errors, unhealthy host count |
 | S3 state with versioning + encryption | Recover from accidental state corruption; state at rest is encrypted |
 | DynamoDB state locking | Prevents concurrent `terraform apply` races |
+
