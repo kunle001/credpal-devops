@@ -147,6 +147,12 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         ]
         Resource = "arn:aws:iam::*:role/credpal-*"
       },
+      # IAM – OIDC provider read (data source lookup by URL)
+      {
+        Effect   = "Allow"
+        Action   = ["iam:ListOpenIDConnectProviders", "iam:GetOpenIDConnectProvider"]
+        Resource = "*"
+      },
       # EC2 – VPC, subnets, SGs, routing, NAT, EIPs
       {
         Effect   = "Allow"
