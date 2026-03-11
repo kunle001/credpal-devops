@@ -91,9 +91,12 @@ resource "aws_iam_role" "github_actions" {
       }
       Action = "sts:AssumeRoleWithWebIdentity"
       Condition = {
-        # Restrict to the main branch only – production deployments from main
+        # Allow production environment jobs (approval-gated) and main-branch jobs
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:${var.github_repo}:environment:production",
+            "repo:${var.github_repo}:ref:refs/heads/main"
+          ]
         }
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
