@@ -403,6 +403,7 @@ jobs:
           TF_VAR_domain_name: ${{ vars.STAGING_DOMAIN }}
           TF_VAR_github_repo: ${{ github.repository }}
           TF_VAR_alarm_email: ${{ vars.ALARM_EMAIL }}
+          TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
 
   # ────────────────────────────────────────────────────────────────────────────
   # Job 8 – Deploy to Production  (MANUAL APPROVAL REQUIRED)
@@ -504,3 +505,4 @@ jobs:
           TF_VAR_domain_name: ${{ vars.PROD_DOMAIN }}
           TF_VAR_github_repo: ${{ github.repository }}
           TF_VAR_alarm_email: ${{ vars.ALARM_EMAIL }}
+          TF_VAR_route53_zone_id: ${{ vars.ROUTE53_ZONE_ID }}
