@@ -68,6 +68,7 @@ module "ecs" {
   db_password             = var.db_password
   log_retention_days      = 30
   alarm_email             = var.alarm_email
+  ghcr_secret_arn         = "arn:aws:secretsmanager:us-east-1:517818188528:secret:credpal/ghcr-pull-credentials"
 }
 
 # ─── GitHub Actions OIDC ──────────────────────────────────────────────────────

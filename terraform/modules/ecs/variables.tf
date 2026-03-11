@@ -110,3 +110,8 @@ variable "alarm_email" {
   type        = string
   default     = ""
 }
+
+variable "ghcr_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing GHCR pull credentials ({username, password})."
+  type        = string
+}

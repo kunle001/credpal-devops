@@ -35,7 +35,6 @@ resource "aws_sns_topic_subscription" "email" {
 
 # ─── IAM – Task Execution Role ────────────────────────────────────────────────
 # Used by ECS infrastructure: pull images, write logs, read secrets.
-
 data "aws_iam_policy_document" "ecs_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -64,16 +63,18 @@ resource "aws_iam_role_policy" "execution_secrets" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = aws_secretsmanager_secret.db_password.arn
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue"]
+      Resource = [
+        aws_secretsmanager_secret.db_password.arn,
+        var.ghcr_secret_arn,
+      ]
     }]
   })
 }
 
 # ─── IAM – Task Role ──────────────────────────────────────────────────────────
 # Used by the application process itself (e.g. S3, SQS if needed later).
-
 resource "aws_iam_role" "task" {
   name               = "${var.name_prefix}-ecs-task-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
@@ -109,6 +110,10 @@ resource "aws_ecs_task_definition" "app" {
     image     = var.app_image
     essential = true
     user      = "1001"
+
+    repositoryCredentials = {
+      credentialsParameter = var.ghcr_secret_arn
+    }
 
     portMappings = [{
       containerPort = var.app_port
