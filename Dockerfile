@@ -31,7 +31,7 @@ RUN npm test
 FROM node:20-alpine AS production
 
 # Security: install dumb-init for signal handling, wget for healthcheck
-RUN apk add --no-cache dumb-init wget
+RUN apk add --no-cache dumb-init=1.2.5-r3 wget=1.25.0-r2
 
 # Create non-root user
 RUN addgroup -g 1001 -S appgroup && \
