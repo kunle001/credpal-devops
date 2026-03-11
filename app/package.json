@@ -1,7 +1,7 @@
 {
   "name": "credpal-node-app",
   "version": "1.0.0",
-  "description": "Production-ready Node.js application for CredPal DevOps assessment",
+  "description": "Production-ready Node.js application for CredPal",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

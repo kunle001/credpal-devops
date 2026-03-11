@@ -24,7 +24,7 @@ describe('GET /status', () => {
 
 describe('POST /process', () => {
   it('processes a valid JSON payload', async () => {
-    const payload = { name: 'CredPal', task: 'assessment' };
+    const payload = { customerId: 'cust_001', amount: 50000 };
     const res = await request(app)
       .post('/process')
       .send(payload)

@@ -1,4 +1,4 @@
-# CredPal DevOps Assessment
+# CredPal DevOps Pipeline
 
 DevOps pipeline for a Node.js web application — containerisation, CI/CD, infrastructure-as-code, zero-downtime deployment, security, and observability.
 
