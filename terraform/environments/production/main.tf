@@ -129,31 +129,90 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # ECS deployments
+      # ECS – full management for deployments and Terraform
+      {
+        Effect   = "Allow"
+        Action   = ["ecs:*"]
+        Resource = "*"
+      },
+      # IAM – manage roles/policies scoped to this project, plus PassRole
       {
         Effect = "Allow"
         Action = [
-          "ecs:UpdateService",
-          "ecs:RegisterTaskDefinition",
-          "ecs:DescribeTaskDefinition",
-          "ecs:DescribeServices"
+          "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:TagRole", "iam:UntagRole",
+          "iam:UpdateRole", "iam:UpdateAssumeRolePolicy",
+          "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy",
+          "iam:ListRolePolicies", "iam:ListAttachedRolePolicies",
+          "iam:AttachRolePolicy", "iam:DetachRolePolicy",
+          "iam:PassRole"
         ]
-        Resource = "*"
+        Resource = "arn:aws:iam::*:role/credpal-*"
       },
-      # Pass the ECS execution role and task role when registering a new task definition
-      {
-        Effect = "Allow"
-        Action = ["iam:PassRole"]
-        Resource = [
-          module.ecs.task_role_arn,
-          module.ecs.execution_role_arn
-        ]
-      },
-      # Read pipeline credentials from Secrets Manager
+      # EC2 – VPC, subnets, SGs, routing, NAT, EIPs
       {
         Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = aws_secretsmanager_secret.pipeline.arn
+        Action   = ["ec2:*"]
+        Resource = "*"
+      },
+      # ELB – ALB, target groups, listeners
+      {
+        Effect   = "Allow"
+        Action   = ["elasticloadbalancing:*"]
+        Resource = "*"
+      },
+      # ACM – certificates
+      {
+        Effect   = "Allow"
+        Action   = ["acm:*"]
+        Resource = "*"
+      },
+      # WAFv2
+      {
+        Effect   = "Allow"
+        Action   = ["wafv2:*"]
+        Resource = "*"
+      },
+      # Route53 – DNS records for ACM validation and ALB alias
+      {
+        Effect   = "Allow"
+        Action   = ["route53:*"]
+        Resource = "*"
+      },
+      # RDS
+      {
+        Effect   = "Allow"
+        Action   = ["rds:*"]
+        Resource = "*"
+      },
+      # Secrets Manager – full access for pipeline secret + db secret management
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:*"]
+        Resource = "arn:aws:secretsmanager:*:*:secret:credpal-*"
+      },
+      # CloudWatch Logs
+      {
+        Effect   = "Allow"
+        Action   = ["logs:*"]
+        Resource = "*"
+      },
+      # CloudWatch Alarms
+      {
+        Effect   = "Allow"
+        Action   = ["cloudwatch:*"]
+        Resource = "*"
+      },
+      # SNS – alarm topics
+      {
+        Effect   = "Allow"
+        Action   = ["sns:*"]
+        Resource = "*"
+      },
+      # Application Auto Scaling
+      {
+        Effect   = "Allow"
+        Action   = ["application-autoscaling:*"]
+        Resource = "*"
       },
       # Terraform remote state – S3
       {
