@@ -1,6 +1,6 @@
 # CredPal DevOps Assessment
 
-Production-ready DevOps pipeline for a Node.js web application — containerisation, CI/CD, infrastructure-as-code, zero-downtime deployment, security, and observability.
+DevOps pipeline for a Node.js web application — containerisation, CI/CD, infrastructure-as-code, zero-downtime deployment, security, and observability.
 
 ---
 
