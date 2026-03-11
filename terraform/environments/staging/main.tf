@@ -159,8 +159,8 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
         Resource = [
-          "arn:aws:s3:::credpal-terraform-state",
-          "arn:aws:s3:::credpal-terraform-state/staging/*"
+          "arn:aws:s3:::credpal-terraform-state-517818188528",
+          "arn:aws:s3:::credpal-terraform-state-517818188528/staging/*"
         ]
       },
       # Terraform remote state – DynamoDB lock
