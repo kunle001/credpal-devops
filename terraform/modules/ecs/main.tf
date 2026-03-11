@@ -117,13 +117,13 @@ resource "aws_ecs_task_definition" "app" {
     }]
 
     environment = [
-      { name = "NODE_ENV",     value = var.environment },
-      { name = "PORT",         value = tostring(var.app_port) },
-      { name = "APP_VERSION",  value = var.app_version },
-      { name = "DB_HOST",      value = var.db_host },
-      { name = "DB_PORT",      value = tostring(var.db_port) },
-      { name = "DB_NAME",      value = var.db_name },
-      { name = "DB_USER",      value = var.db_username },
+      { name = "NODE_ENV", value = var.environment },
+      { name = "PORT", value = tostring(var.app_port) },
+      { name = "APP_VERSION", value = var.app_version },
+      { name = "DB_HOST", value = var.db_host },
+      { name = "DB_PORT", value = tostring(var.db_port) },
+      { name = "DB_NAME", value = var.db_name },
+      { name = "DB_USER", value = var.db_username },
     ]
 
     secrets = [{

@@ -26,18 +26,18 @@ module "alb" {
   domain_name                = var.domain_name
   route53_zone_id            = var.route53_zone_id
   enable_deletion_protection = false
-  enable_waf                 = false  # WAF skipped on staging to save cost
+  enable_waf                 = false # WAF skipped on staging to save cost
 }
 
 module "rds" {
-  source             = "../../modules/rds"
-  name_prefix        = local.name_prefix
-  private_subnet_ids = module.vpc.private_subnet_ids
-  rds_sg_id          = module.security_groups.rds_sg_id
-  db_name            = var.db_name
-  db_username        = var.db_username
-  db_password        = var.db_password
-  instance_class     = "db.t3.micro"
+  source                     = "../../modules/rds"
+  name_prefix                = local.name_prefix
+  private_subnet_ids         = module.vpc.private_subnet_ids
+  rds_sg_id                  = module.security_groups.rds_sg_id
+  db_name                    = var.db_name
+  db_username                = var.db_username
+  db_password                = var.db_password
+  instance_class             = "db.t3.micro"
   backup_retention_days      = 1
   multi_az                   = false
   enable_deletion_protection = false
