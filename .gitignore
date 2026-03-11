@@ -1,25 +1,20 @@
-# ─── Node ─────────────────────────────────────────────────────────────────────
 node_modules/
 npm-debug.log*
 coverage/
 
-# ─── Environment files ────────────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
 
-# ─── Terraform ────────────────────────────────────────────────────────────────
 **/.terraform/
 **/.terraform.lock.hcl
 **/terraform.tfstate
 **/terraform.tfstate.backup
 **/crash.log
 
-# Saved plan files — contain sensitive output
 **/tfplan
 tfplan
 
-# tfvars contain secrets (DB passwords etc) — only examples are committed
 **/terraform.tfvars
 !**/terraform.tfvars.example
 
