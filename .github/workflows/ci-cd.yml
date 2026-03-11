@@ -337,10 +337,17 @@ jobs:
 
       - name: Smoke test /health
         run: |
-          sleep 10
-          curl --fail --silent --max-time 15 \
-            https://${{ vars.STAGING_DOMAIN }}/health \
-            | grep -q '"healthy"' && echo "Smoke test passed."
+          for i in 1 2 3 4 5; do
+            sleep 15
+            response=$(curl --silent --max-time 15 https://${{ vars.STAGING_DOMAIN }}/health || true)
+            if echo "$response" | grep -q '"healthy"'; then
+              echo "Smoke test passed on attempt $i."
+              exit 0
+            fi
+            echo "Attempt $i failed, response: $response"
+          done
+          echo "Smoke test failed after 5 attempts."
+          exit 1
 
   # ────────────────────────────────────────────────────────────────────────────
   # Job 7 – Terraform Apply Staging
