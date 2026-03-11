@@ -35,8 +35,14 @@ FROM node:20-alpine AS production
 RUN apk upgrade --no-cache && \
     apk add --no-cache dumb-init wget
 
-# Upgrade npm to latest patched version (bundled npm may contain CVEs)
-RUN npm install -g npm@latest --ignore-scripts
+# Remove npm from the production image – the container only runs `node`, not npm.
+# This eliminates npm's bundled deps (minimatch, tar) from the Trivy scan surface
+# and reduces image size.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx \
+           /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/corepack
 
 # Create non-root user
 RUN addgroup -g 1001 -S appgroup && \
