@@ -139,11 +139,14 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         ]
         Resource = "*"
       },
-      # Pass the ECS task role to the task definition
+      # Pass the ECS execution role and task role when registering a new task definition
       {
-        Effect   = "Allow"
-        Action   = ["iam:PassRole"]
-        Resource = module.ecs.task_role_arn
+        Effect = "Allow"
+        Action = ["iam:PassRole"]
+        Resource = [
+          module.ecs.task_role_arn,
+          module.ecs.execution_role_arn
+        ]
       },
       # Read pipeline credentials from Secrets Manager
       {

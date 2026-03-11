@@ -51,3 +51,13 @@ variable "github_repo" {
   description = "GitHub repo in org/repo format (e.g. myorg/credpal-devops)"
   type        = string
 }
+
+
+# cd "/Users/apple/Desktop/devop test /credpal-devops/terraform/environments/staging"
+# terraform apply -auto-approve \
+#   -var="app_image=ghcr.io/kunle001/credpal-devops:latest" \
+#   -var="db_username=credpal_user" \
+#   -var="db_password=supersecretpassword" \
+#   -var="domain_name=staging-api.kreltix.com" \
+#   -var="github_repo=kunle001/credpal-devops" \
+#   -var="alarm_email=adekunle.olanipekun.ko@gmail.com"
